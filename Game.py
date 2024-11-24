@@ -7,29 +7,30 @@ import copy
 
 class Game2048:
     def __init__(self, rows, cols):
-        """
-        Initialize the game board.
-        :param rows: Number of rows in the game board.
-        :param cols: Number of columns in the game board.
-        """
         self.rows = rows
         self.cols = cols
         self.sparse_matrix = DoublyLinkedList()
-        self.undo_stack = deque(maxlen=5)  # Stack to store previous states for undo
-        self.redo_stack = []  # Stack to store states for redo
+        self.undo_stack = deque(maxlen=5)  # Stack to store previous states
+        self.redo_stack = []  # Stack for redo
+        self.player_score = 0  # Player score
         self.biggest_number = 2048
-        self.has_moved = False  #To control if the board moved or not
+        self.has_moved = False
         self.generate_new_tile()
         self.generate_new_tile()
 
-    def save_state(self, board=None):
+    def save_state(self, state=None):
         """
         Save the current state for undo/redo functionality.
         """
-        if not board: board = copy.deepcopy(self.sparse_matrix)
-        self.undo_stack.append(board)  # Add current state
+        if not state:
+            state = {
+                'board': copy.deepcopy(self.sparse_matrix),
+                'score': self.player_score
+            }
+            
+        self.undo_stack.append(state)  # Add current state
         self.redo_stack = []  # Clear redo stack after a new move
-        
+    
     def generate_new_tile(self):
         """
         Add a new tile (2 or 4) to a random empty position on the board.
@@ -42,14 +43,14 @@ class Game2048:
             i, j = random.choice(empty_positions)
             value = 4 if random.random() < 0.3 else 2
             self.sparse_matrix.add_node(value, i, j)
-
+    
     def merge(self, node1, node2):
         """
-        Merge node2 into node1 and delete node2.
-        :param node1: The target node to merge into.
-        :param node2: The node to be merged.
+        Merge node2 into node1, delete node2, and update the score.
         """
-        self.sparse_matrix.update_node(node1, node1.value + node2.value)
+        new_value = node1.value + node2.value
+        self.player_score += new_value  # Update score
+        self.sparse_matrix.update_node(node1, new_value)
         self.sparse_matrix.delete_node(node2)
 
     # def to_left(self):
@@ -191,7 +192,7 @@ class Game2048:
         Shift all tiles in the given direction.
         Direction can be 'left', 'right', 'up', or 'down'.
         """
-        board_copy = copy.deepcopy(self.sparse_matrix)
+        state_copy = {"board": copy.deepcopy(self.sparse_matrix), "score": copy.deepcopy(self.player_score)}
         self.has_moved = False
 
         
@@ -238,7 +239,7 @@ class Game2048:
                         current = node
 
         if self.has_moved:
-            self.save_state(board_copy)
+            self.save_state(state_copy)
             self.after_move()
         else:
             playsound("Error.mp3")
@@ -298,21 +299,38 @@ class Game2048:
         - Add a new tile.
         """
         self.generate_new_tile()
-        
+    
     def undo(self):
+        """
+        Undo the last move, restoring the previous state and score.
+        """
         if self.undo_stack:
-            self.redo_stack.append(copy.deepcopy(self.sparse_matrix))
-            self.sparse_matrix = self.undo_stack.pop()
+            current_state = {
+                'board': copy.deepcopy(self.sparse_matrix),
+                'score': self.player_score
+            }
+            self.redo_stack.append(current_state)
+            previous_state = self.undo_stack.pop()
+            self.sparse_matrix = previous_state['board']
+            self.player_score = previous_state['score']
         else:
-            print("Undo is no available: undo stack is empty")
-
-
+            print("Undo is not available.")
+    
     def redo(self):
+        """
+        Redo the last undone move, restoring the next state and score.
+        """
         if self.redo_stack:
-            self.undo_stack.append(self.sparse_matrix)
-            self.sparse_matrix = self.redo_stack.pop()
+            current_state = {
+                'board': copy.deepcopy(self.sparse_matrix),
+                'score': self.player_score
+            }
+            self.undo_stack.append(current_state)
+            next_state = self.redo_stack.pop()
+            self.sparse_matrix = next_state['board']
+            self.player_score = next_state['score']
         else:
-            print("Redo is no available: redo stack is empty")
+            print("Redo is not available.")
 
     def __str__(self):
         board = [["[]" for _ in range(self.cols)] for _ in range(self.rows)] #create an empty board
@@ -358,6 +376,3 @@ class Game2048:
             if self.check_win():
                 print("GAME ENDED: Congratulations! You won!")
                 break  # End the game if the player wins
-                
-                
-                
